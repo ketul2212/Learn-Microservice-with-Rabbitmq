@@ -1,0 +1,128 @@
+version: '3.7'
+
+services:
+  mysqldb:
+    hostname: mysqldb
+    container_name: mysqldb
+    image: mysql
+    networks:
+      - currency-network
+    ports:
+      - 3307:3306
+    environment:
+      - MYSQL_DATABASE=Learn_Microservices
+      - MYSQL_ROOT_PASSWORD=Drc@1234
+      - MYSQL_PASSWORD=Drc@1234
+      - MYSQL_ALLOW_EMPTY_PASSWORD=no
+
+  currency-exchange:
+    restart: always
+    container_name: currency-exchange
+    image: currency-exchange-service
+    build: .
+    ports:
+#      - "8000-8099:8000"
+      - "8000:8000"
+    networks:
+      - currency-network
+    depends_on:
+      - naming-server
+      - mysqldb
+      - rabbitmq
+    environment:
+      EUREKA.CLIENT.SERVICEURL.DEFAULTZONE: http://naming-server:8761/eureka
+      SPRING.ZIPKIN.BASEURL: http://zipkin-server:9411/
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysqldb:3306/Learn_Microservices?autoReconnect=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: Drc@1234
+      RABBIT_URI: amqp://guest:guest@rabbitmq:5672
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_ZIPKIN_SENDER_TYPE: rabbit
+#      MYSQL_HOST: mysqldb
+#      MYSQL_USER: root
+#      MYSQL_PASSWORD: Drc@1234
+#      MYSQL_PORT: 3306
+#      SPRING_APPLICATION_JSON: '{
+#        "spring.datasource.url": "jdbc:mysql://mysqldb:3306/Learn_Microservices?useSSL=false",
+#        "spring.datasource.username": "root",
+#        "spring.datasource.password": "Drc@1234",
+#        "spring.jpa.properties.hibernate.dialect": "org.hibernate.dialect.MySQL5InnoDBDialect",
+#        "spring.jpa.hibernate.ddl-auto": "update"
+#      }'
+
+  currency-conversion:
+    container_name: currency-conversion
+    restart: always
+    image: currency-conversion-service
+    build: .
+    ports:
+#      - "8100-8199:8100"
+      - "8100:8100"
+    networks:
+      - currency-network
+    depends_on:
+      - naming-server
+      - rabbitmq
+    environment:
+      EUREKA.CLIENT.SERVICEURL.DEFAULTZONE: http://naming-server:8761/eureka
+      SPRING.ZIPKIN.BASEURL: http://zipkin-server:9411/
+      RABBIT_URI: amqp://guest:guest@rabbitmq:5672
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_ZIPKIN_SENDER_TYPE: rabbit
+
+  api-gateway:
+    container_name: api-gateway
+    restart: always
+    image: api-gateway
+    build: .
+    ports:
+      - "8765:8765"
+    networks:
+      - currency-network
+    depends_on:
+      - naming-server
+      - rabbitmq
+    environment:
+      EUREKA.CLIENT.SERVICEURL.DEFAULTZONE: http://naming-server:8761/eureka
+      SPRING.ZIPKIN.BASEURL: http://zipkin-server:9411/
+      RABBIT_URI: amqp://guest:guest@rabbitmq:5672
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_ZIPKIN_SENDER_TYPE: rabbit
+
+  naming-server:
+    container_name: naming-server
+    image: naming-server
+    build: .
+    ports:
+      - "8761:8761"
+    networks:
+      - currency-network
+
+  zipkin-server:
+    image: openzipkin/zipkin:2.23
+    mem_limit: 300m
+    ports:
+      - "9411:9411"
+    networks:
+      - currency-network
+    environment:
+      RABBIT_URI: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - rabbitmq
+    restart: always
+
+  rabbitmq:
+    image: rabbitmq:3.5.3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - currency-network
+    restart: always
+
+networks:
+  currency-network:

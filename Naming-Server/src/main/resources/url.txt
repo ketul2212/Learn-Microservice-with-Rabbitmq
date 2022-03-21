@@ -1,0 +1,96 @@
+#Limits-Service
+	1.) http://localhost:8080/limits
+	
+#Config-Server
+	1.) http://localhost:8888/limits-service/default
+	2.) http://localhost:8888/limits-service/dev
+	3.) http://localhost:8888/limits-service/qa
+
+#Naming-Server
+	1.) http://localhost:8761
+
+#Currency-Exchange-Service
+	1.) http://localhost:8000/currency-exchange/from/ABC/to/INR
+
+#Currency-Conversion-Service
+	1.) http://localhost:8100/currency-conversion/from/ABC/to/INR/quantity/465444445
+	2.) http://localhost:8100/currency-conversion/feign/from/ABC/to/INR/quantity/465444445
+	
+#API-Gateway
+I.) Currency-Conversion-Service:
+	-> If in application.properties we write below property then hit below urls and works fine
+		property:
+			spring.cloud.gateway.discovery.locator.lower-case-service-id=false
+		urls:
+			1.) http://localhost:8765/CURRENCY-CONVERSION-SERVICE/currency-conversion/from/ABC/to/INR/quantity/45
+			2.) http://localhost:8765/CURRENCY-CONVERSION-SERVICE/currency-conversion/feign/from/ABC/to/INR/quantity/45
+
+	-> If in application.properties we write below property then hit below urls and works fine
+		property:
+			spring.cloud.gateway.discovery.locator.lower-case-service-id=true
+		urls:
+			1.) http://localhost:8765/currency-conversion-service/currency-conversion/from/ABC/to/INR/quantity/45
+			2.) http://localhost:8765/currency-conversion-service/currency-conversion/feign/from/ABC/to/INR/quantity/45
+			
+II.) Currency-Exchange-Service:
+	-> If in application.properties we write below property then hit below url and works fine
+		property:
+			spring.cloud.gateway.discovery.locator.lower-case-service-id=false
+		url:
+			1.) http://localhost:8765/CURRENCY-EXCHANGE-SERVICE/currency-conversion/from/ABC/to/INR
+
+	-> If in application.properties we write below property then hit below url and works fine
+		property:
+			spring.cloud.gateway.discovery.locator.lower-case-service-id=true
+		url:
+			1.) http://localhost:8765/currency-exchange-service/currency-conversion/from/ABC/to/INR
+			
+---------------------------------------------------------------------------------------------------------------
+Note:- If we put below configuration in Api-Gateway of Application.properties file then below urls not working
+		property:
+			spring.cloud.gateway.discovery.locator.enabled=true
+			spring.cloud.gateway.discovery.locator.lower-case-service-id=true
+----------------------------------------------------------------------------------------------------------------
+
+-> If we create a customize routes then follow below step and hit below urls to see results:
+	1. Create a 1 class with @Configuration annotation
+	2. Create 1 @Bean with RouteLocator like below
+		@Bean
+		public RouteLocator gatewayRouter(RouteLocatorBuilder builder) {
+			return builder.routes()
+				
+				.route(p -> p.path("/get") // This is a path which we want to map
+						.filters(f -> f
+								.addRequestHeader("MyHeader", "Ketul")
+								.addRequestParameter("MyParam", "KetulPatel"))
+						.uri("http://httpbin.org:80")) // This is URL
+				
+				.route(p -> p.path("/currency-exchange/**") // This is a path which we want to map
+						.uri("lb://currency-exchange-service")) // This is service name which are register with eureka
+				
+				.route(p -> p.path("/currency-conversion/**") // This is a path which we want to map
+						.uri("lb://currency-conversion-service")) // This is service name which are register with eureka
+				
+				.route(p -> p.path("/currency-conversion/feign/**") // This is a path which we want to map
+						.uri("lb://currency-conversion-service")) // This is service name which are register with eureka
+				.build();
+		}
+	3. If we want some new url and call mapped url then add this thing in method
+		.route(p -> p.path("/conversion/**") // This is a path which we want to map
+			.route(p -> p.path("/conversion/**") // This is a path which we want to map
+						.filters(f -> f.rewritePath(
+								"/conversion(?<segment>.*)",
+								"/currency-conversion${segment}")) // replace paths
+			.uri("lb://currency-conversion-service")) // This is service name which are register with eureka
+	urls:
+		1.) http://localhost:8765/get
+		
+		2.) http://localhost:8765/currency-conversion/from/ABC/to/INR/quantity/45
+		3.) http://localhost:8765/currency-conversion/feign/from/ABC/to/INR/quantity/45
+		4.) http://localhost:8765/conversion/feign/from/ABC/to/INR/quantity/45
+		
+		5.) http://localhost:8765/currency-exchange/from/ABC/to/INR
+		6.) http://localhost:8765/currency-exchange/save  ----> POST URL
+		
+		
+		

@@ -1,0 +1,52 @@
+version: '3.7'
+
+services:
+  mysqldb:
+    container_name: mysqldb
+    image: mysql
+    ports:
+      - 3307:3306
+    environment:
+      MYSQL_DATABASE: Learn_Microservices
+      MYSQL_ROOT_PASSWORD: Drc@1234
+
+  currency-exchange:
+    restart: always
+    container_name: currency-exchange
+    image: currency-exchange-service
+    build: .
+    ports:
+      - "8000-8099:8000"
+    networks:
+      - currency-network
+    depends_on:
+      - naming-server
+    environment:
+      EUREKA.CLIENT.SERVICEURL.DEFAULTZONE: http://naming-server:8761/eureka
+      SPRING.ZIPKIN.BASEURL: http://zipkin-server:9411/
+      MYSQL_HOST: mysqldb
+      MYSQL_USER: root
+      MYSQL_PASSWORD: Drc@1234
+      MYSQL_PORT: 3306
+
+  naming-server:
+    container_name: naming-server
+    image: naming-server
+    build: .
+    ports:
+      - "8761:8761"
+    networks:
+      - currency-network
+
+  zipkin-server:
+    container_name: zipkin-server
+    build: .
+    image: openzipkin/zipkin:2.23
+    ports:
+      - "9411:9411"
+    networks:
+      - currency-network
+    restart: always #Restart if there is a problem starting up
+
+networks:
+  currency-network:
